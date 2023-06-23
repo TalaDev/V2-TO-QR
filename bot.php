@@ -1,21 +1,8 @@
 <?php
-
 $botToken = "TOKEN";
 $update = json_decode(file_get_contents("php://input"), TRUE);
 $chatId = $update["message"]["chat"]["id"];
 $text = $update["message"]["text"];
-$telegram_ip_ranges = [
-['lower' => '149.154.160.0', 'upper' => '149.154.175.255'], // literally 149.154.160.0/20
-['lower' => '91.108.4.0',    'upper' => '91.108.7.255'],    // literally 91.108.4.0/22
-];
-$ip_dec = (float) sprintf("%u", ip2long($_SERVER['REMOTE_ADDR']));
-$ok=false;
-foreach ($telegram_ip_ranges as $telegram_ip_range) if (!$ok) {
-    $lower_dec = (float) sprintf("%u", ip2long($telegram_ip_range['lower']));
-    $upper_dec = (float) sprintf("%u", ip2long($telegram_ip_range['upper']));
-    if ($ip_dec >= $lower_dec and $ip_dec <= $upper_dec) $ok=true;
-}
-if (!$ok) die("Are You Okay ?"); 
 
 $supportedPrefixes = ['vmess://', 'vless://', 'trojan://'];
 
@@ -41,6 +28,25 @@ if ($text == '/start') {
 ", $botToken, $encodedKeyboard);
 
 } else {
+    if ($callback_query) {
+        $callbackQueryId = $callback_query["id"];
+        $callbackQueryMessageId = $callback_query["message"]["message_id"];
+        $callbackQueryUserId = $callback_query["from"]["id"];
+        $callbackQueryData = $callback_query["data"];
+
+        if ($callbackQueryData == '/set') {
+            sendModeSelectionMessage($callbackQueryUserId, $botToken);
+        } elseif ($callbackQueryData == 'qr_mode_photo') {
+            setUserQrMode($callbackQueryUserId, 'photo', $qrModeFilePath);
+            sendMessage($callbackQueryUserId, "حالت خروجی برای کاربر به 'عکس' تغییر یافت.", $botToken);
+        } elseif ($callbackQueryData == 'qr_mode_sticker') {
+            setUserQrMode($callbackQueryUserId, 'sticker', $qrModeFilePath);
+            sendMessage($callbackQueryUserId, "حالت خروجی برای کاربر به 'استیکر' تغییر یافت.", $botToken);
+        }
+
+        exit();
+    }
+
     $foundSupportedLink = false;
 
     foreach ($supportedPrefixes as $prefix) {
@@ -53,7 +59,11 @@ if ($text == '/start') {
     if ($foundSupportedLink) {
         $qrImageUrl = create_qr_code_image_url($text);
         $userQrMode = getUserQrMode($chatId, $qrModeFilePath);
-        send_qr_code_photo($qrImageUrl, $chatId, $botToken);
+        if ($userQrMode == "sticker") {
+            send_qr_code_sticker($qrImageUrl, $chatId, $botToken);
+        } else {
+            send_qr_code_photo($qrImageUrl, $chatId, $botToken);
+        }
     } else {
         sendMessage($chatId, "لینک پشتیبانی نشده!", $botToken);
     }
@@ -119,19 +129,45 @@ function getUserQrMode($userId, $qrModeFilePath) {
     return 'photo'; // Default value
 }
 
-function create_qr_code_image_url($text) {
-    $url = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' . urlencode($text);
-    return $url;
-}
-
 function send_qr_code_photo($qrImageUrl, $chatId, $botToken) {
-    $url = "https://api.telegram.org/bot$botToken/sendPhoto?chat_id=$chatId";
+    $url = "https://api.telegram.org/bot$botToken/sendPhoto";
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, [
-        'photo' => $qrImageUrl,
+        'chat_id' => $chatId,
+        'photo' => $qrImageUrl
     ]);
-    curl_exec($ch);
+    $response = curl_exec($ch);
     curl_close($ch);
+    return json_decode($response, true);
+}
+
+function create_qr_code_image_url($text) {
+    $textEncoded = urlencode($text);
+    return "https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=$textEncoded";
+}
+
+function send_qr_code_sticker($qrImageUrl, $chatId, $botToken) {
+    $url = "https://api.telegram.org/bot$botToken/sendSticker";
+    $tmpFilePath = download_image_to_temp_file($qrImageUrl);
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type:multipart/form-data"));
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, [
+        'chat_id' => $chatId,
+        'sticker' => new CURLFile($tmpFilePath)
+    ]);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    unlink($tmpFilePath);
+    return json_decode($response, true);
+}
+
+function download_image_to_temp_file($url) {
+    $tmpFilePath = 'temp/' . uniqid() . '.png';
+    file_put_contents($tmpFilePath, file_get_contents($url));
+    return $tmpFilePath;
 }
