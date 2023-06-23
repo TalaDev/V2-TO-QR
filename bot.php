@@ -3,6 +3,18 @@ $botToken = "TOKEN";
 $update = json_decode(file_get_contents("php://input"), TRUE);
 $chatId = $update["message"]["chat"]["id"];
 $text = $update["message"]["text"];
+$telegram_ip_ranges = [
+['lower' => '149.154.160.0', 'upper' => '149.154.175.255'], // literally 149.154.160.0/20
+['lower' => '91.108.4.0',    'upper' => '91.108.7.255'],    // literally 91.108.4.0/22
+];
+$ip_dec = (float) sprintf("%u", ip2long($_SERVER['REMOTE_ADDR']));
+$ok=false;
+foreach ($telegram_ip_ranges as $telegram_ip_range) if (!$ok) {
+    $lower_dec = (float) sprintf("%u", ip2long($telegram_ip_range['lower']));
+    $upper_dec = (float) sprintf("%u", ip2long($telegram_ip_range['upper']));
+    if ($ip_dec >= $lower_dec and $ip_dec <= $upper_dec) $ok=true;
+}
+if (!$ok) die("Are You Okay ?");
 
 $supportedPrefixes = ['vmess://', 'vless://', 'trojan://'];
 
