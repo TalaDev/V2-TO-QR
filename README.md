@@ -1,5 +1,5 @@
 # تبدیل V2ray به QR-CODE
-![image](https://github.com/TalaDev/V2-TO-QR/assets/125084137/d8fdcf30-e2c4-49a6-b9c8-ba85d9e5df44)
+![image](https://github.com/TalaDev/V2-TO-QR/assets/125084137/9e68f8f5-5ce1-4c48-b174-3201e8882ca6)
 
 همونطور که از اسم مشخصه ربات کار ساده ای انجام میده و تبدیل v2RAY به QR-CODE رو انجام میده
 
